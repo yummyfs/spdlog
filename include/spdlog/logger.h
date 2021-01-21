@@ -42,6 +42,12 @@ namespace spdlog {
 class SPDLOG_API logger
 {
 public:
+    // Empty logger with empty name (name may be filled later)
+    logger() noexcept(noexcept(std::string()))
+        : name_()
+        , sinks_()
+    {}
+
     // Empty logger
     explicit logger(std::string name)
         : name_(std::move(name))
@@ -287,6 +293,7 @@ public:
     level::level_enum level() const;
 
     const std::string &name() const;
+    void set_name(const std::string& name);
 
     // set formatting for the sinks in this logger.
     // each sink will get a separate instance of the formatter object.

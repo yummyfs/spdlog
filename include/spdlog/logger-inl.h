@@ -79,6 +79,11 @@ SPDLOG_INLINE const std::string &logger::name() const
     return name_;
 }
 
+SPDLOG_INLINE void logger::set_name(const std::string &name)
+{
+    name_ = name;
+}
+
 // set formatting for the sinks in this logger.
 // each sink will get a separate instance of the formatter object.
 SPDLOG_INLINE void logger::set_formatter(std::unique_ptr<formatter> f)
