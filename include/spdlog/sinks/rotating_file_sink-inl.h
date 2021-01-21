@@ -61,10 +61,23 @@ SPDLOG_INLINE filename_t rotating_file_sink<Mutex>::filename()
 }
 
 template<typename Mutex>
+void SPDLOG_INLINE rotating_file_sink<Mutex>::log(const details::log_msg &msg)
+{
+    // Don't acquire `mutex_` when calling `sink_it_`
+    // std::lock_guard<Mutex> lock(base_sink<Mutex>::mutex_);
+    sink_it_(msg);
+}
+
+template<typename Mutex>
 SPDLOG_INLINE void rotating_file_sink<Mutex>::sink_it_(const details::log_msg &msg)
 {
     memory_buf_t formatted;
     base_sink<Mutex>::formatter_->format(msg, formatted);
+
+    // As we didn't acquire `mutex_` before calling `sink_it_`, we acquire it here
+    // Note that `formatter_->format` may run concurrently now
+    std::lock_guard<Mutex> lock(base_sink<Mutex>::mutex_);
+
     current_size_ += formatted.size();
     if (current_size_ > max_size_)
     {

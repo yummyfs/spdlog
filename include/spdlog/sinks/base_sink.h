@@ -29,7 +29,7 @@ public:
     base_sink &operator=(const base_sink &) = delete;
     base_sink &operator=(base_sink &&) = delete;
 
-    void log(const details::log_msg &msg) final;
+    void log(const details::log_msg &msg) /*final*/override;  // Allow further overriding this function
     void flush() final;
     void set_pattern(const std::string &pattern) final;
     void set_formatter(std::unique_ptr<spdlog::formatter> sink_formatter) final;

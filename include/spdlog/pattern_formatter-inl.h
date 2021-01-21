@@ -889,9 +889,9 @@ public:
 
     void format(const details::log_msg &msg, const std::tm &, memory_buf_t &dest) override
     {
-        auto delta = (std::max)(msg.time - last_message_time_, log_clock::duration::zero());
+        log_clock::time_point old_last_message_time = last_message_time_.exchange(msg.time, std::memory_order_release);
+        auto delta = (std::max)(msg.time - old_last_message_time, log_clock::duration::zero());
         auto delta_units = std::chrono::duration_cast<DurationUnits>(delta);
-        last_message_time_ = msg.time;
         auto delta_count = static_cast<size_t>(delta_units.count());
         auto n_digits = static_cast<size_t>(ScopedPadder::count_digits(delta_count));
         ScopedPadder p(n_digits, padinfo_, dest);
@@ -899,7 +899,7 @@ public:
     }
 
 private:
-    log_clock::time_point last_message_time_;
+    std::atomic<log_clock::time_point> last_message_time_;
 };
 
 // Full info formatter
@@ -997,10 +997,8 @@ SPDLOG_INLINE pattern_formatter::pattern_formatter(
     : pattern_(std::move(pattern))
     , eol_(std::move(eol))
     , pattern_time_type_(time_type)
-    , last_log_secs_(0)
     , custom_handlers_(std::move(custom_user_flags))
 {
-    std::memset(&cached_tm_, 0, sizeof(cached_tm_));
     compile_pattern_(pattern_);
 }
 
@@ -1009,9 +1007,7 @@ SPDLOG_INLINE pattern_formatter::pattern_formatter(pattern_time_type time_type, 
     : pattern_("%+")
     , eol_(std::move(eol))
     , pattern_time_type_(time_type)
-    , last_log_secs_(0)
 {
-    std::memset(&cached_tm_, 0, sizeof(cached_tm_));
     formatters_.push_back(details::make_unique<details::full_formatter>(details::padding_info{}));
 }
 
@@ -1027,16 +1023,20 @@ SPDLOG_INLINE std::unique_ptr<formatter> pattern_formatter::clone() const
 
 SPDLOG_INLINE void pattern_formatter::format(const details::log_msg &msg, memory_buf_t &dest)
 {
+    thread_local static std::chrono::seconds __last_log_secs;
+    thread_local static std::tm __cached_tm;
+
+    // `__last_log_secs` is initialized to 0, `secs` should not be 0 anyway.
     auto secs = std::chrono::duration_cast<std::chrono::seconds>(msg.time.time_since_epoch());
-    if (secs != last_log_secs_)
+    if (secs != __last_log_secs)
     {
-        cached_tm_ = get_time_(msg);
-        last_log_secs_ = secs;
+        __cached_tm = get_time_(msg);
+        __last_log_secs = secs;
     }
 
     for (auto &f : formatters_)
     {
-        f->format(msg, cached_tm_, dest);
+        f->format(msg, __cached_tm, dest);
     }
     // write eol
     details::fmt_helper::append_string_view(eol_, dest);
